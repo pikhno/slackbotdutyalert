@@ -1,100 +1,88 @@
 """
-Slack Bolt app для слеш-команд.
-Деплой: Render.com (free tier) або будь-який хостинг з публічним URL.
+Lightweight Flask handler for Slack slash commands.
+No Slack Bolt — responds immediately to beat the 3-second timeout.
 """
 import os
 import re
+import hmac
+import hashlib
+import time
 from datetime import date, timedelta
-
-from slack_bolt import App
-from slack_bolt.adapter.flask import SlackRequestHandler
-from flask import Flask, request
+from flask import Flask, request, jsonify
 
 from bot.rotation import oncall_for, week_start, TEAM
 from bot.state import get_overrides, set_override, clear_override
 from bot.alerts import count_alerts_this_week
-
-slack_app = App(
-    token=os.environ["SLACK_BOT_TOKEN"],
-    signing_secret=os.environ["SLACK_SIGNING_SECRET"],
-)
+from slack_sdk import WebClient
 
 flask_app = Flask(__name__)
-handler   = SlackRequestHandler(slack_app)
+
+SIGNING_SECRET = os.environ["SLACK_SIGNING_SECRET"].encode()
+client = WebClient(token=os.environ["SLACK_BOT_TOKEN"])
+CHANNEL_ID = os.environ["SLACK_CHANNEL_ID"]
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# /черговий  — хто зараз on-call
-# ──────────────────────────────────────────────────────────────────────────────
-@slack_app.command("/oncall")
-def cmd_oncall(ack, respond, command):
-    ack()
-    overrides = get_overrides()
-    today     = date.today()
-    current   = oncall_for(today, overrides)
-    ws        = week_start(today)
-    ws_end    = ws + timedelta(days=6)
-
-    try:
-        alert_count = count_alerts_this_week(slack_app.client, os.environ["SLACK_CHANNEL_ID"])
-        alerts_text = f"📊 Алертів цього тижня: *{alert_count}*\n"
-    except Exception:
-        alerts_text = ""
-
-    respond(
-        f"🔔 *Зараз черговий:* <@{current['slack_id']}> ({current['name']})\n"
-        f"{alerts_text}"
-        f"📅 Тиждень: {ws.strftime('%d.%m')} – {ws_end.strftime('%d.%m.%Y')}"
-    )
+def verify_slack(req) -> bool:
+    ts = req.headers.get("X-Slack-Request-Timestamp", "")
+    if abs(time.time() - float(ts)) > 300:
+        return False
+    sig_base = f"v0:{ts}:{req.get_data(as_text=True)}"
+    expected = "v0=" + hmac.new(SIGNING_SECRET, sig_base.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, req.headers.get("X-Slack-Signature", ""))
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# /замінити @user [YYYY-MM-DD]  — замінити чергового на тиждень
-# ──────────────────────────────────────────────────────────────────────────────
-@slack_app.command("/oncall-sub")
-def cmd_substitute(ack, respond, command):
-    ack()
-    text = (command.get("text") or "").strip()
-
-    user_match = re.search(r"<@(\w+)(?:\|[^>]*)?>", text)
-    if not user_match:
-        respond("❌ Usage: `/oncall-sub @user` or `/oncall-sub @user 2025-05-05`")
-        return
-
-    target_id  = user_match.group(1)
-    date_match = re.search(r"(\d{4}-\d{2}-\d{2})", text)
-    ws         = date_match.group(1) if date_match else str(week_start(date.today()))
-
-    # Перевіримо, що user є в команді
-    known = {m["slack_id"]: m["name"] for m in TEAM}
-    if target_id not in known:
-        respond(f"⚠️ <@{target_id}> не знайдений у списку команди. Перевір SLACK_ID у `bot/rotation.py`.")
-        return
-
-    set_override(ws, target_id)
-    respond(f"✅ On-call for week `{ws}` → <@{target_id}> ({known[target_id]})")
+def ephemeral(text: str):
+    return jsonify({"response_type": "ephemeral", "text": text})
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# /скасувати-заміну [YYYY-MM-DD]
-# ──────────────────────────────────────────────────────────────────────────────
-@slack_app.command("/oncall-unsub")
-def cmd_clear_sub(ack, respond, command):
-    ack()
-    text       = (command.get("text") or "").strip()
-    date_match = re.search(r"(\d{4}-\d{2}-\d{2})", text)
-    ws         = date_match.group(1) if date_match else str(week_start(date.today()))
-
-    clear_override(ws)
-    respond(f"✅ Override for week `{ws}` removed, back to regular rotation.")
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Flask routes
-# ──────────────────────────────────────────────────────────────────────────────
 @flask_app.route("/slack/events", methods=["POST"])
 def slack_events():
-    return handler.handle(request)
+    if not verify_slack(request):
+        return "Unauthorized", 401
+
+    command = request.form.get("command", "")
+    text    = (request.form.get("text") or "").strip()
+
+    # /oncall
+    if command == "/oncall":
+        overrides = get_overrides()
+        today     = date.today()
+        current   = oncall_for(today, overrides)
+        ws        = week_start(today)
+        ws_end    = ws + timedelta(days=6)
+        try:
+            alerts = count_alerts_this_week(client, CHANNEL_ID)
+            alerts_text = f"\n📊 Алертів цього тижня: *{alerts}*"
+        except Exception:
+            alerts_text = ""
+        return ephemeral(
+            f"🔔 *Зараз черговий:* <@{current['slack_id']}> ({current['name']})"
+            f"{alerts_text}\n"
+            f"📅 Тиждень: {ws.strftime('%d.%m')} – {ws_end.strftime('%d.%m.%Y')}"
+        )
+
+    # /oncall-sub @user [YYYY-MM-DD]
+    if command == "/oncall-sub":
+        user_match = re.search(r"<@(\w+)(?:\|[^>]*)?>", text)
+        if not user_match:
+            return ephemeral("❌ Usage: `/oncall-sub @user` or `/oncall-sub @user 2025-05-05`")
+        target_id  = user_match.group(1)
+        known      = {m["slack_id"]: m["name"] for m in TEAM}
+        if target_id not in known:
+            return ephemeral(f"⚠️ <@{target_id}> not found in the team list.")
+        date_match = re.search(r"(\d{4}-\d{2}-\d{2})", text)
+        ws         = date_match.group(1) if date_match else str(week_start(date.today()))
+        set_override(ws, target_id)
+        return ephemeral(f"✅ On-call for week `{ws}` → <@{target_id}> ({known[target_id]})")
+
+    # /oncall-unsub [YYYY-MM-DD]
+    if command == "/oncall-unsub":
+        date_match = re.search(r"(\d{4}-\d{2}-\d{2})", text)
+        ws         = date_match.group(1) if date_match else str(week_start(date.today()))
+        clear_override(ws)
+        return ephemeral(f"✅ Override for week `{ws}` removed, back to regular rotation.")
+
+    return "", 200
 
 
 @flask_app.route("/health")
