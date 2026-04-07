@@ -29,9 +29,9 @@ commands
 ### Slash Commands (Features → Slash Commands)
 | Command | Request URL | Опис |
 |---|---|---|
-| `/черговий` | `https://YOUR_APP.onrender.com/slack/events` | Хто зараз on-call |
-| `/замінити` | `https://YOUR_APP.onrender.com/slack/events` | Замінити чергового |
-| `/скасувати-заміну` | `https://YOUR_APP.onrender.com/slack/events` | Скасувати заміну |
+| `/oncall` | `https://slackbotdutyalert.vercel.app/slack/events` | Хто зараз on-call |
+| `/oncall-sub` | `https://slackbotdutyalert.vercel.app/slack/events` | Замінити чергового |
+| `/oncall-unsub` | `https://slackbotdutyalert.vercel.app/slack/events` | Скасувати заміну |
 
 5. **Event Subscriptions** → увімкнути → Request URL: `https://YOUR_APP.onrender.com/slack/events`
 6. Запросити бота в канал: `/invite @On-Call Bot`
@@ -115,6 +115,7 @@ python scripts/announce.py
 
 ### Через GitHub Actions вручну:
 - **Actions → Manual Test → Run workflow** → вибрати `announce` або `show_schedule`
+- **Actions → Manual Test → Run workflow** → вибрати `announce` для тестового запуску в канал
 - **Actions → Friday On-Call Announcement → Run workflow** → `dry_run: true` (без постингу)
 
 ---
@@ -146,8 +147,8 @@ slack-oncall-bot/
 
 У Slack:
 ```
-/замінити @Nadiia              → замінює поточний тиждень
-/замінити @Nadiia 2025-05-05   → замінює конкретний тиждень (вказати понеділок)
-/скасувати-заміну              → повертає стандартну ротацію
-/скасувати-заміну 2025-05-05   → скасовує заміну на конкретний тиждень
+/oncall-sub @Nadiia              → замінює поточний тиждень
+/oncall-sub @Nadiia 2025-05-05   → замінює конкретний тиждень (вказати понеділок)
+/oncall-unsub                    → повертає стандартну ротацію
+/oncall-unsub 2025-05-05         → скасовує заміну на конкретний тиждень
 ```
