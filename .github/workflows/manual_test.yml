@@ -1,0 +1,41 @@
+name: Manual Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Що запустити'
+        required: true
+        default: 'show_schedule'
+        type: choice
+        options:
+          - show_schedule
+          - announce
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Show schedule
+        if: ${{ inputs.action == 'show_schedule' }}
+        run: python scripts/show_schedule.py
+
+      - name: Post to Slack now
+        if: ${{ inputs.action == 'announce' }}
+        env:
+          SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+          GIST_ID:          ${{ secrets.GIST_ID }}
+          GIST_TOKEN:       ${{ secrets.GIST_TOKEN }}
+          ALERT_PATTERNS:   ${{ secrets.ALERT_PATTERNS }}
+        run: python scripts/announce.py

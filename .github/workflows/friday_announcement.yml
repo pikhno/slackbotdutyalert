@@ -1,0 +1,41 @@
+name: Friday On-Call Announcement
+
+on:
+  schedule:
+    # Кожної п'ятниці о 07:00 UTC = 10:00 Kyiv (UTC+3)
+    - cron: '0 7 * * 5'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (print schedule, do not post to Slack)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Show schedule (dry run)
+        if: ${{ inputs.dry_run == 'true' }}
+        run: python scripts/show_schedule.py
+
+      - name: Post announcement to Slack
+        if: ${{ inputs.dry_run != 'true' }}
+        env:
+          SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+          GIST_ID:          ${{ secrets.GIST_ID }}
+          GIST_TOKEN:       ${{ secrets.GIST_TOKEN }}
+          ALERT_PATTERNS:   ${{ secrets.ALERT_PATTERNS }}
+        run: python scripts/announce.py
