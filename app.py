@@ -26,7 +26,7 @@ handler   = SlackRequestHandler(slack_app)
 # ──────────────────────────────────────────────────────────────────────────────
 # /черговий  — хто зараз on-call
 # ──────────────────────────────────────────────────────────────────────────────
-@slack_app.command("/черговий")
+@slack_app.command("/oncall")
 def cmd_oncall(ack, respond, command):
     ack()
     overrides = get_overrides()
@@ -51,14 +51,14 @@ def cmd_oncall(ack, respond, command):
 # ──────────────────────────────────────────────────────────────────────────────
 # /замінити @user [YYYY-MM-DD]  — замінити чергового на тиждень
 # ──────────────────────────────────────────────────────────────────────────────
-@slack_app.command("/замінити")
+@slack_app.command("/oncall-sub")
 def cmd_substitute(ack, respond, command):
     ack()
     text = (command.get("text") or "").strip()
 
     user_match = re.search(r"<@(\w+)(?:\|[^>]*)?>", text)
     if not user_match:
-        respond("❌ Використання: `/замінити @user` або `/замінити @user 2025-05-05`")
+        respond("❌ Usage: `/oncall-sub @user` or `/oncall-sub @user 2025-05-05`")
         return
 
     target_id  = user_match.group(1)
@@ -72,13 +72,13 @@ def cmd_substitute(ack, respond, command):
         return
 
     set_override(ws, target_id)
-    respond(f"✅ Черговий на тиждень `{ws}` → <@{target_id}> ({known[target_id]})")
+    respond(f"✅ On-call for week `{ws}` → <@{target_id}> ({known[target_id]})")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # /скасувати-заміну [YYYY-MM-DD]
 # ──────────────────────────────────────────────────────────────────────────────
-@slack_app.command("/скасувати-заміну")
+@slack_app.command("/oncall-unsub")
 def cmd_clear_sub(ack, respond, command):
     ack()
     text       = (command.get("text") or "").strip()
@@ -86,7 +86,7 @@ def cmd_clear_sub(ack, respond, command):
     ws         = date_match.group(1) if date_match else str(week_start(date.today()))
 
     clear_override(ws)
-    respond(f"✅ Заміна на тиждень `{ws}` скасована, повертається стандартна ротація.")
+    respond(f"✅ Override for week `{ws}` removed, back to regular rotation.")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
