@@ -63,7 +63,7 @@ def main() -> None:
         f"<@{next_oncall['slack_id']}>\n"
         f"📅 *{week_after_ws.strftime('%d.%m')}–{(week_after_ws + timedelta(days=6)).strftime('%d.%m')}:* "
         f"<@{week_after_oncall['slack_id']}>\n\n"
-        f"_Змінити чергового: `/замінити @user` або `/замінити @user 2025-05-05`_"
+        f"_Змінити чергового: `/oncall-sub @user` або `/oncall-sub @user 2025-05-05`_"
     )
     client.chat_postMessage(channel=CHANNEL_ID, text=summary)
     print(f"Done. Next on-call: {next_oncall['name']}, alerts this week: {alert_count}")
