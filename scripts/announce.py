@@ -94,7 +94,7 @@ def announce_channel(client: WebClient, channel_id: str, team: list, overrides: 
         # Команди
         {
             "type": "context",
-            "elements": [{"type": "mrkdwn", "text": "💡 `/oncall` · `/oncall-sub @user` · `/oncall-unsub` · `/oncall-add @user` · `/oncall-remove @user` · `/oncall-list`"}]
+            "elements": [{"type": "mrkdwn", "text": "💡 `/oncall` · `/oncall-sub @user` · `/oncall-unsub` · `/oncall-add @user` · `/oncall-remove @user` · `/oncall-list` · `/oncall-history`"}]
         },
     ]
 
