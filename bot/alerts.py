@@ -1,14 +1,11 @@
 """
 Рахує алерти в каналі за поточний тиждень (пн–сьогодні).
-Алерт = повідомлення, що містить хоча б один з ALERT_PATTERNS.
+Алерт = повідомлення від Alertmanager app (bot_id B03E15RC1QT).
 """
-import os
 from datetime import datetime, timedelta, timezone
 from slack_sdk import WebClient
 
-# Патерни через кому у env-змінній, наприклад: "FIRING,CRITICAL,[ALERT]"
-_raw = os.environ.get("ALERT_PATTERNS", "FIRING,CRITICAL,ALERT,alert:")
-ALERT_PATTERNS = [p.strip() for p in _raw.split(",") if p.strip()]
+ALERTMANAGER_BOT_ID = "B03E15RC1QT"
 
 
 def count_alerts_this_week(client: WebClient, channel_id: str) -> int:
@@ -27,8 +24,7 @@ def count_alerts_this_week(client: WebClient, channel_id: str) -> int:
         resp = client.conversations_history(**kwargs)
 
         for msg in resp.get("messages", []):
-            text = msg.get("text", "")
-            if any(p.lower() in text.lower() for p in ALERT_PATTERNS):
+            if msg.get("bot_id") == ALERTMANAGER_BOT_ID:
                 count += 1
 
         if not resp.get("has_more"):
