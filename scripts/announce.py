@@ -1,54 +1,52 @@
 """
-Щоп'ятничне оголошення.
+Щоп'ятничне оголошення — постить у всі канали що є в Gist.
 Запускається GitHub Actions або вручну: python scripts/announce.py
 """
 import os
 import sys
 import time
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from slack_sdk import WebClient
 
-from bot.rotation import oncall_for, week_start, TEAM
-from bot.state import get_overrides
+from bot.rotation import oncall_for, week_start
+from bot.state import load, DEFAULT_CHANNEL, DEFAULT_TEAM
 from bot.spin import spin_reveal
 from bot.alerts import count_alerts_this_week
 from bot.gif import get_random_gif
 
 SLACK_TOKEN = os.environ["SLACK_BOT_TOKEN"]
-CHANNEL_ID  = os.environ["SLACK_CHANNEL_ID"]
 
 
-def main() -> None:
-    client    = WebClient(token=SLACK_TOKEN)
-    overrides = get_overrides()
-    today     = date.today()
+def announce_channel(client: WebClient, channel_id: str, team: list, overrides: dict, rotation_start: date) -> None:
+    today = date.today()
 
-    # Визначаємо наступний понеділок
-    days_to_monday  = (7 - today.weekday()) % 7 or 7
-    next_monday     = today + timedelta(days=days_to_monday)
-    next_ws         = week_start(next_monday)
-    week_after_ws   = next_ws + timedelta(weeks=1)
+    days_to_monday    = (7 - today.weekday()) % 7 or 7
+    next_monday       = today + timedelta(days=days_to_monday)
+    next_ws           = week_start(next_monday)
+    week_after_ws     = next_ws + timedelta(weeks=1)
 
-    next_oncall      = oncall_for(next_monday, overrides)
-    week_after_oncall = oncall_for(week_after_ws + timedelta(days=1), overrides)
+    next_oncall       = oncall_for(next_monday, overrides, team, rotation_start)
+    week_after_oncall = oncall_for(week_after_ws + timedelta(days=1), overrides, team, rotation_start)
+    current_oncall    = oncall_for(today, overrides, team, rotation_start)
 
-    # Алерти поточного тижня
-    current_oncall = oncall_for(today, overrides)
-    alert_count    = count_alerts_this_week(client, CHANNEL_ID)
+    try:
+        alert_count = count_alerts_this_week(client, channel_id)
+    except Exception:
+        alert_count = "—"
 
-    # 1. Постимо «затравку» (вона стане фреймом спін-анімації)
+    # 1. Затравка для спін-анімації
     resp = client.chat_postMessage(
-        channel=CHANNEL_ID,
+        channel=channel_id,
         text="🎰  Хто черговий на наступний тиждень?  🎰",
     )
     ts = resp["ts"]
     time.sleep(0.8)
 
     # 2. Спін-анімація → фінальне ім'я
-    spin_reveal(client, CHANNEL_ID, ts, next_oncall, TEAM)
+    spin_reveal(client, channel_id, ts, next_oncall, team)
     time.sleep(1.0)
 
     # 3. Підсумкове повідомлення
@@ -66,18 +64,48 @@ def main() -> None:
         f"<@{week_after_oncall['slack_id']}>\n\n"
         f"_Змінити чергового: `/oncall-sub @user` або `/oncall-sub @user 2025-05-05`_"
     )
-    client.chat_postMessage(channel=CHANNEL_ID, text=summary)
+    client.chat_postMessage(channel=channel_id, text=summary)
 
     # 4. Тематичний GIF
     gif_url = get_random_gif()
     if gif_url:
         client.chat_postMessage(
-            channel=CHANNEL_ID,
+            channel=channel_id,
             blocks=[{"type": "image", "image_url": gif_url, "alt_text": "on-call vibes"}],
             text="on-call vibes",
         )
 
-    print(f"Done. Next on-call: {next_oncall['name']}, alerts this week: {alert_count}")
+    print(f"  ✓ {channel_id} — next: {next_oncall['name']}, alerts: {alert_count}")
+
+
+def main() -> None:
+    client = WebClient(token=SLACK_TOKEN)
+
+    try:
+        state    = load()
+        channels = state.get("channels", {})
+    except Exception:
+        channels = {}
+
+    # Якщо Gist порожній — використовуємо дефолтний канал
+    if not channels:
+        channels = {
+            DEFAULT_CHANNEL: {
+                "team": DEFAULT_TEAM,
+                "rotation_start": "2025-04-14",
+                "overrides": {},
+            }
+        }
+
+    print(f"Announcing to {len(channels)} channel(s)...")
+    for channel_id, data in channels.items():
+        try:
+            team      = data.get("team") or DEFAULT_TEAM
+            overrides = data.get("overrides", {})
+            rs        = datetime.strptime(data.get("rotation_start", "2025-04-14"), "%Y-%m-%d").date()
+            announce_channel(client, channel_id, team, overrides, rs)
+        except Exception as e:
+            print(f"  ✗ {channel_id}: {e}")
 
 
 if __name__ == "__main__":
