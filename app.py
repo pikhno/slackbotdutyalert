@@ -82,23 +82,29 @@ def slack_events():
         lines = "\n".join(f"{i+1}. <@{m['slack_id']}> ({m['name']})" for i, m in enumerate(team))
         return ephemeral(f"📋 *Команда в ротації ({len(team)} осіб):*\n{lines}")
 
-    # ── /oncall-add @user ─────────────────────────────────────────────────────
+    # ── /oncall-add @user1 @user2 ... ────────────────────────────────────────
     if command == "/oncall-add":
-        user_match = re.search(r"<@(\w+)(?:\|([^>]*))?>" , text)
-        if not user_match:
-            return ephemeral("❌ Usage: `/oncall-add @user`")
-        slack_id   = user_match.group(1)
-        # Отримати ім'я з профілю Slack
-        try:
-            profile = client.users_info(user=slack_id)
-            name    = profile["user"]["profile"].get("real_name") or profile["user"]["name"]
-        except Exception:
-            name = user_match.group(2) or slack_id
-        ok = add_member(channel_id, slack_id, name)
-        if ok:
-            return ephemeral(f"✅ <@{slack_id}> ({name}) додано до ротації")
-        else:
-            return ephemeral(f"⚠️ <@{slack_id}> вже є в команді")
+        user_matches = re.findall(r"<@(\w+)(?:\|([^>]*))?>" , text)
+        if not user_matches:
+            return ephemeral("❌ Usage: `/oncall-add @user` або `/oncall-add @user1 @user2 @user3`")
+        added, skipped = [], []
+        for slack_id, display_name in user_matches:
+            try:
+                profile = client.users_info(user=slack_id)
+                name    = profile["user"]["profile"].get("real_name") or profile["user"]["name"]
+            except Exception:
+                name = display_name or slack_id
+            ok = add_member(channel_id, slack_id, name)
+            if ok:
+                added.append(f"<@{slack_id}> ({name})")
+            else:
+                skipped.append(f"<@{slack_id}>")
+        lines = []
+        if added:
+            lines.append("✅ Додано: " + ", ".join(added))
+        if skipped:
+            lines.append("⚠️ Вже в команді: " + ", ".join(skipped))
+        return ephemeral("\n".join(lines))
 
     # ── /oncall-remove @user ──────────────────────────────────────────────────
     if command == "/oncall-remove":
