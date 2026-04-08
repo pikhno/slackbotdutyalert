@@ -1,6 +1,5 @@
 """
 Lightweight Flask handler for Slack slash commands.
-No Slack Bolt — responds immediately to beat the 3-second timeout.
 """
 import os
 import re
@@ -9,17 +8,21 @@ import hashlib
 import time
 from datetime import date, timedelta
 from flask import Flask, request, jsonify
-
-from bot.rotation import oncall_for, week_start, TEAM
-from bot.state import get_overrides, set_override, clear_override
-from bot.alerts import count_alerts_this_week
 from slack_sdk import WebClient
+
+from bot.rotation import oncall_for, week_start
+from bot.state import (
+    get_team, get_overrides, get_rotation_start,
+    set_override, clear_override,
+    add_member, remove_member,
+)
+from bot.alerts import count_alerts_this_week
 
 flask_app = Flask(__name__)
 
 SIGNING_SECRET = os.environ["SLACK_SIGNING_SECRET"].encode()
-client = WebClient(token=os.environ["SLACK_BOT_TOKEN"])
-CHANNEL_ID = os.environ["SLACK_CHANNEL_ID"]
+client         = WebClient(token=os.environ["SLACK_BOT_TOKEN"])
+DEFAULT_CHANNEL = os.environ["SLACK_CHANNEL_ID"]
 
 
 def verify_slack(req) -> bool:
@@ -35,6 +38,17 @@ def ephemeral(text: str):
     return jsonify({"response_type": "ephemeral", "text": text})
 
 
+def get_channel_context(form):
+    """Визначає channel_id і завантажує команду/ротацію для цього каналу."""
+    channel_id = form.get("channel_id", DEFAULT_CHANNEL)
+    team       = get_team(channel_id) or get_team(DEFAULT_CHANNEL)
+    overrides  = get_overrides(channel_id)
+    rs_str     = get_rotation_start(channel_id)
+    from datetime import datetime
+    rotation_start = datetime.strptime(rs_str, "%Y-%m-%d").date()
+    return channel_id, team, overrides, rotation_start
+
+
 @flask_app.route("/slack/events", methods=["POST"])
 def slack_events():
     if not verify_slack(request):
@@ -42,16 +56,16 @@ def slack_events():
 
     command = request.form.get("command", "")
     text    = (request.form.get("text") or "").strip()
+    channel_id, team, overrides, rotation_start = get_channel_context(request.form)
 
-    # /oncall
+    # ── /oncall ───────────────────────────────────────────────────────────────
     if command == "/oncall":
-        overrides = get_overrides()
-        today     = date.today()
-        current   = oncall_for(today, overrides)
-        ws        = week_start(today)
-        ws_end    = ws + timedelta(days=6)
+        today   = date.today()
+        current = oncall_for(today, overrides, team, rotation_start)
+        ws      = week_start(today)
+        ws_end  = ws + timedelta(days=6)
         try:
-            alerts = count_alerts_this_week(client, CHANNEL_ID)
+            alerts = count_alerts_this_week(client, channel_id)
             alerts_text = f"\n📊 Алертів цього тижня: *{alerts}*"
         except Exception:
             alerts_text = ""
@@ -61,26 +75,63 @@ def slack_events():
             f"📅 Тиждень: {ws.strftime('%d.%m')} – {ws_end.strftime('%d.%m.%Y')}"
         )
 
-    # /oncall-sub @user [YYYY-MM-DD]
+    # ── /oncall-list ──────────────────────────────────────────────────────────
+    if command == "/oncall-list":
+        if not team:
+            return ephemeral("📋 Команда порожня. Додай учасників через `/oncall-add @user`")
+        lines = "\n".join(f"{i+1}. <@{m['slack_id']}> ({m['name']})" for i, m in enumerate(team))
+        return ephemeral(f"📋 *Команда в ротації ({len(team)} осіб):*\n{lines}")
+
+    # ── /oncall-add @user ─────────────────────────────────────────────────────
+    if command == "/oncall-add":
+        user_match = re.search(r"<@(\w+)(?:\|([^>]*))?>" , text)
+        if not user_match:
+            return ephemeral("❌ Usage: `/oncall-add @user`")
+        slack_id   = user_match.group(1)
+        # Отримати ім'я з профілю Slack
+        try:
+            profile = client.users_info(user=slack_id)
+            name    = profile["user"]["profile"].get("real_name") or profile["user"]["name"]
+        except Exception:
+            name = user_match.group(2) or slack_id
+        ok = add_member(channel_id, slack_id, name)
+        if ok:
+            return ephemeral(f"✅ <@{slack_id}> ({name}) додано до ротації")
+        else:
+            return ephemeral(f"⚠️ <@{slack_id}> вже є в команді")
+
+    # ── /oncall-remove @user ──────────────────────────────────────────────────
+    if command == "/oncall-remove":
+        user_match = re.search(r"<@(\w+)(?:\|[^>]*)?>", text)
+        if not user_match:
+            return ephemeral("❌ Usage: `/oncall-remove @user`")
+        slack_id = user_match.group(1)
+        ok = remove_member(channel_id, slack_id)
+        if ok:
+            return ephemeral(f"✅ <@{slack_id}> видалено з ротації")
+        else:
+            return ephemeral(f"⚠️ <@{slack_id}> не знайдений в команді")
+
+    # ── /oncall-sub @user [YYYY-MM-DD] ────────────────────────────────────────
     if command == "/oncall-sub":
         user_match = re.search(r"<@(\w+)(?:\|[^>]*)?>", text)
         if not user_match:
             return ephemeral("❌ Usage: `/oncall-sub @user` or `/oncall-sub @user 2025-05-05`")
-        target_id  = user_match.group(1)
-        known      = {m["slack_id"]: m["name"] for m in TEAM}
-        if target_id not in known:
-            return ephemeral(f"⚠️ <@{target_id}> not found in the team list.")
+        slack_id   = user_match.group(1)
+        known      = {m["slack_id"]: m["name"] for m in team}
+        if slack_id not in known:
+            return ephemeral(f"⚠️ <@{slack_id}> не знайдений в команді. Спочатку додай через `/oncall-add`")
         date_match = re.search(r"(\d{4}-\d{2}-\d{2})", text)
         ws         = date_match.group(1) if date_match else str(week_start(date.today()))
-        set_override(ws, target_id)
-        return ephemeral(f"✅ On-call for week `{ws}` → <@{target_id}> ({known[target_id]})")
+        set_override(ws, slack_id, channel_id)
+        return ephemeral(f"✅ On-call для тижня `{ws}` → <@{slack_id}> ({known[slack_id]})")
 
-    # /oncall-unsub [YYYY-MM-DD]
+    # ── /oncall-unsub [YYYY-MM-DD] ────────────────────────────────────────────
     if command == "/oncall-unsub":
         date_match = re.search(r"(\d{4}-\d{2}-\d{2})", text)
         ws         = date_match.group(1) if date_match else str(week_start(date.today()))
-        clear_override(ws)
-        return ephemeral(f"✅ Override for week `{ws}` removed, back to regular rotation.")
+        clear_override(ws, channel_id)
+        return ephemeral(f"✅ Заміна для тижня `{ws}` скасована, повертається стандартна ротація.")
 
     return "", 200
 
