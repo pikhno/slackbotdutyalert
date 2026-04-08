@@ -62,7 +62,7 @@ def announce_channel(client: WebClient, channel_id: str, team: list, overrides: 
         f"<@{next_oncall['slack_id']}>\n"
         f"📅 *{week_after_ws.strftime('%d.%m')}–{(week_after_ws + timedelta(days=6)).strftime('%d.%m')}:* "
         f"<@{week_after_oncall['slack_id']}>\n\n"
-        f"_Змінити чергового: `/oncall-sub @user` або `/oncall-sub @user 2025-05-05`_"
+        f"_Команди: `/oncall` · `/oncall-sub @user` · `/oncall-unsub` · `/oncall-add @user` · `/oncall-remove @user` · `/oncall-list`_"
     )
     client.chat_postMessage(channel=channel_id, text=summary)
 
