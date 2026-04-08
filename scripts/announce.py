@@ -14,6 +14,8 @@ from bot.rotation import oncall_for, week_start
 from bot.state import load, DEFAULT_CHANNEL, DEFAULT_TEAM
 from bot.alerts import count_alerts_this_week
 from bot.gif import get_random_gif
+from bot.spin import WISHES
+import random
 
 SLACK_TOKEN = os.environ["SLACK_BOT_TOKEN"]
 
@@ -38,24 +40,61 @@ def announce_channel(client: WebClient, channel_id: str, team: list, overrides: 
     current_ws     = week_start(today)
     current_ws_end = current_ws + timedelta(days=6)
     next_ws_end    = next_ws + timedelta(days=6)
+    wish           = random.choice(WISHES)
 
-    text = (
-        f"🎯 *Черговий на наступний тиждень* — <@{next_oncall['slack_id']}> ({next_oncall['name']})\n\n"
-        f"📋 *Підсумок тижня {current_ws.strftime('%d.%m')}–{current_ws_end.strftime('%d.%m')}*"
-        f" (черговий: {current_oncall['name']}):\n"
-        f"• Алертів: *{alert_count}*\n\n"
-        f"📅 *{next_ws.strftime('%d.%m')}–{next_ws_end.strftime('%d.%m')}:* <@{next_oncall['slack_id']}>\n"
-        f"📅 *{week_after_ws.strftime('%d.%m')}–{(week_after_ws + timedelta(days=6)).strftime('%d.%m')}:* "
-        f"<@{week_after_oncall['slack_id']}>\n\n"
-        f"_Команди: `/oncall` · `/oncall-sub @user` · `/oncall-unsub` · `/oncall-add @user` · `/oncall-remove @user` · `/oncall-list`_"
-    )
+    plain_text = f"Черговий на {next_ws.strftime('%d.%m')}–{next_ws_end.strftime('%d.%m')}: {next_oncall['name']}"
+
+    blocks = [
+        # Заголовок
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "🔔 On-Call цього тижня", "emoji": True}
+        },
+        # Черговий + побажання
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*Черговий на наступний тиждень:*\n<@{next_oncall['slack_id']}> ({next_oncall['name']})\n\n_{wish}_"
+            }
+        },
+        {"type": "divider"},
+        # Підсумок поточного тижня
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*📋 Підсумок тижня {current_ws.strftime('%d.%m')}–{current_ws_end.strftime('%d.%m')}*"
+            }
+        },
+        {
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": f"*Черговий:*\n{current_oncall['name']}"},
+                {"type": "mrkdwn", "text": f"*Алертів:*\n{alert_count}"},
+            ]
+        },
+        {"type": "divider"},
+        # Наступні два тижні
+        {
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": f"*📅 {next_ws.strftime('%d.%m')}–{next_ws_end.strftime('%d.%m')}:*\n<@{next_oncall['slack_id']}>"},
+                {"type": "mrkdwn", "text": f"*📅 {week_after_ws.strftime('%d.%m')}–{(week_after_ws + timedelta(days=6)).strftime('%d.%m')}:*\n<@{week_after_oncall['slack_id']}>"},
+            ]
+        },
+        # Команди
+        {
+            "type": "context",
+            "elements": [{"type": "mrkdwn", "text": "💡 `/oncall` · `/oncall-sub @user` · `/oncall-unsub` · `/oncall-add @user` · `/oncall-remove @user` · `/oncall-list`"}]
+        },
+    ]
 
     gif_url = get_random_gif()
-    blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
     if gif_url:
         blocks.append({"type": "image", "image_url": gif_url, "alt_text": "on-call vibes"})
 
-    client.chat_postMessage(channel=channel_id, blocks=blocks, text=text)
+    client.chat_postMessage(channel=channel_id, blocks=blocks, text=plain_text)
     print(f"  ✓ {channel_id} — next: {next_oncall['name']}, alerts: {alert_count}")
 
 
