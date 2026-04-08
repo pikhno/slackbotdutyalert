@@ -4,7 +4,6 @@
 """
 import os
 import sys
-import time
 from datetime import date, timedelta, datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -13,7 +12,6 @@ from slack_sdk import WebClient
 
 from bot.rotation import oncall_for, week_start
 from bot.state import load, DEFAULT_CHANNEL, DEFAULT_TEAM
-from bot.spin import spin_reveal
 from bot.alerts import count_alerts_this_week
 from bot.gif import get_random_gif
 
@@ -37,40 +35,27 @@ def announce_channel(client: WebClient, channel_id: str, team: list, overrides: 
     except Exception:
         alert_count = "—"
 
-    # 1. Затравка для спін-анімації
-    resp = client.chat_postMessage(
-        channel=channel_id,
-        text="🎰  Хто черговий на наступний тиждень?  🎰",
-    )
-    ts = resp["ts"]
-    time.sleep(0.8)
-
-    # 2. Спін-анімація → фінальне ім'я
-    spin_reveal(client, channel_id, ts, next_oncall, team)
-    time.sleep(1.0)
-
-    # 3. Підсумкове повідомлення
     current_ws     = week_start(today)
     current_ws_end = current_ws + timedelta(days=6)
     next_ws_end    = next_ws + timedelta(days=6)
 
-    summary = (
+    text = (
+        f"🎯 *Черговий на наступний тиждень* — <@{next_oncall['slack_id']}> ({next_oncall['name']})\n\n"
         f"📋 *Підсумок тижня {current_ws.strftime('%d.%m')}–{current_ws_end.strftime('%d.%m')}*"
         f" (черговий: {current_oncall['name']}):\n"
         f"• Алертів: *{alert_count}*\n\n"
-        f"📅 *{next_ws.strftime('%d.%m')}–{next_ws_end.strftime('%d.%m')}:* "
-        f"<@{next_oncall['slack_id']}>\n"
+        f"📅 *{next_ws.strftime('%d.%m')}–{next_ws_end.strftime('%d.%m')}:* <@{next_oncall['slack_id']}>\n"
         f"📅 *{week_after_ws.strftime('%d.%m')}–{(week_after_ws + timedelta(days=6)).strftime('%d.%m')}:* "
         f"<@{week_after_oncall['slack_id']}>\n\n"
         f"_Команди: `/oncall` · `/oncall-sub @user` · `/oncall-unsub` · `/oncall-add @user` · `/oncall-remove @user` · `/oncall-list`_"
     )
-    # 3+4. Summary + GIF в одному повідомленні
+
     gif_url = get_random_gif()
-    blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": summary}}]
+    blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
     if gif_url:
         blocks.append({"type": "image", "image_url": gif_url, "alt_text": "on-call vibes"})
-    client.chat_postMessage(channel=channel_id, blocks=blocks, text=summary)
 
+    client.chat_postMessage(channel=channel_id, blocks=blocks, text=text)
     print(f"  ✓ {channel_id} — next: {next_oncall['name']}, alerts: {alert_count}")
 
 
@@ -83,7 +68,6 @@ def main() -> None:
     except Exception:
         channels = {}
 
-    # Якщо Gist порожній — використовуємо дефолтний канал
     if not channels:
         channels = {
             DEFAULT_CHANNEL: {
