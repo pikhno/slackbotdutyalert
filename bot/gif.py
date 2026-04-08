@@ -27,19 +27,22 @@ TAGS = [
 ]
 
 
-def get_random_gif() -> str | None:
-    """Повертає URL gif або None якщо щось пішло не так."""
+def get_random_gif():
+    """Шукає топ-25 GIF по рандомному тегу і повертає рандомний з них."""
     if not GIPHY_KEY:
         return None
     try:
         tag = random.choice(TAGS)
         r = requests.get(
-            "https://api.giphy.com/v1/gifs/random",
-            params={"api_key": GIPHY_KEY, "tag": tag, "rating": "g"},
+            "https://api.giphy.com/v1/gifs/search",
+            params={"api_key": GIPHY_KEY, "q": tag, "limit": 25, "rating": "g"},
             timeout=5,
         )
         r.raise_for_status()
-        data = r.json().get("data", {})
-        return data.get("images", {}).get("original", {}).get("url")
+        results = r.json().get("data", [])
+        if not results:
+            return None
+        gif = random.choice(results)
+        return gif.get("images", {}).get("original", {}).get("url")
     except Exception:
         return None
