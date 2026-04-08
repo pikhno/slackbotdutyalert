@@ -64,16 +64,12 @@ def announce_channel(client: WebClient, channel_id: str, team: list, overrides: 
         f"<@{week_after_oncall['slack_id']}>\n\n"
         f"_Команди: `/oncall` · `/oncall-sub @user` · `/oncall-unsub` · `/oncall-add @user` · `/oncall-remove @user` · `/oncall-list`_"
     )
-    client.chat_postMessage(channel=channel_id, text=summary)
-
-    # 4. Тематичний GIF
+    # 3+4. Summary + GIF в одному повідомленні
     gif_url = get_random_gif()
+    blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": summary}}]
     if gif_url:
-        client.chat_postMessage(
-            channel=channel_id,
-            blocks=[{"type": "image", "image_url": gif_url, "alt_text": "on-call vibes"}],
-            text="on-call vibes",
-        )
+        blocks.append({"type": "image", "image_url": gif_url, "alt_text": "on-call vibes"})
+    client.chat_postMessage(channel=channel_id, blocks=blocks, text=summary)
 
     print(f"  ✓ {channel_id} — next: {next_oncall['name']}, alerts: {alert_count}")
 
