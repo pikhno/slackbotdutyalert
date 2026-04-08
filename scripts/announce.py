@@ -55,7 +55,7 @@ def announce_channel(client: WebClient, channel_id: str, team: list, overrides: 
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f"*Who is on duty today?* 👀\n<@{next_oncall['slack_id']}> ({next_oncall['name']})"
+                "text": f"*🙃 Пощастило! Черговий на наступний тиждень:*\n<@{next_oncall['slack_id']}> ({next_oncall['name']})"
             }
         },
         # Побажання — виділене
