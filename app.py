@@ -85,8 +85,7 @@ def slack_events():
     # ── /oncall-add @user1 @user2 ... ────────────────────────────────────────
     if command == "/oncall-add":
         # DEBUG: показати що прийшло
-        if text == "debug":
-            return ephemeral(f"raw text: `{request.form.get('text', '')}`")
+        return ephemeral(f"raw text: `{request.form.get('text', '')}`")
         user_matches = re.findall(r"<@(\w+)(?:\|([^>]*))?>" , text)
         if not user_matches:
             return ephemeral("❌ Usage: `/oncall-add @user` або `/oncall-add @user1 @user2 @user3`")
