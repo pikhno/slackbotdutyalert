@@ -172,6 +172,38 @@ def slack_events():
         clear_override(ws, channel_id)
         return ephemeral(f"✅ Заміна для тижня `{ws}` скасована, повертається стандартна ротація.")
 
+    # ── /oncall-history ───────────────────────────────────────────────────────
+    if command == "/oncall-history":
+        today = date.today()
+        if today < rotation_start:
+            return ephemeral("📅 Ротація ще не почалась —历史порожня.")
+
+        # Рахуємо кількість чергувань і останню дату для кожного
+        counts = {m["slack_id"]: {"name": m["name"], "count": 0, "last": None} for m in team}
+        ws = rotation_start
+        while ws <= week_start(today):
+            member = oncall_for(ws, overrides, team, rotation_start)
+            sid = member["slack_id"]
+            if sid in counts:
+                counts[sid]["count"] += 1
+                counts[sid]["last"] = ws
+            ws += timedelta(weeks=1)
+
+        if not any(v["count"] > 0 for v in counts.values()):
+            return ephemeral("📅 Чергувань ще не було.")
+
+        lines = ["📅 *Історія чергувань*\n"]
+        for m in team:
+            info = counts.get(m["slack_id"])
+            if not info:
+                continue
+            last_str = info["last"].strftime("%d.%m.%Y") if info["last"] else "—"
+            lines.append(
+                f"<@{m['slack_id']}> — *{info['count']}* черг. "
+                f"_(останнє: {last_str})_"
+            )
+        return ephemeral("\n".join(lines))
+
     return "", 200
 
 
