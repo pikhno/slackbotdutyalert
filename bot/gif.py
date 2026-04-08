@@ -43,6 +43,11 @@ def get_random_gif():
         if not results:
             return None
         gif = random.choice(results)
-        return gif.get("images", {}).get("original", {}).get("url")
+        images = gif.get("images", {})
+        # fixed_height = 200px tall; fallback to original if not available
+        return (
+            images.get("fixed_height", {}).get("url")
+            or images.get("original", {}).get("url")
+        )
     except Exception:
         return None
