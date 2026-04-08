@@ -50,12 +50,20 @@ def announce_channel(client: WebClient, channel_id: str, team: list, overrides: 
             "type": "header",
             "text": {"type": "plain_text", "text": "🔔 On-Call цього тижня", "emoji": True}
         },
-        # Черговий + побажання
+        # Черговий
         {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f"*Черговий на наступний тиждень:*\n<@{next_oncall['slack_id']}> ({next_oncall['name']})\n\n_{wish}_"
+                "text": f"*Черговий на наступний тиждень:*\n<@{next_oncall['slack_id']}> ({next_oncall['name']})"
+            }
+        },
+        # Побажання — виділене
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"✨ *_{wish}_* ✨"
             }
         },
         {"type": "divider"},
