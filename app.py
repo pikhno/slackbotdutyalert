@@ -84,23 +84,54 @@ def slack_events():
 
     # ── /oncall-add @user1 @user2 ... ────────────────────────────────────────
     if command == "/oncall-add":
-        # DEBUG: показати що прийшло
-        return ephemeral(f"raw text: `{request.form.get('text', '')}`")
-        user_matches = re.findall(r"<@(\w+)(?:\|([^>]*))?>" , text)
-        if not user_matches:
-            return ephemeral("❌ Usage: `/oncall-add @user` або `/oncall-add @user1 @user2 @user3`")
+        # Slack передає mentions як @username (plain text) або <@USERID>
+        # Підтримуємо обидва формати
+        slack_ids = re.findall(r"<@(\w+)(?:\|[^>]*)?>", text)
+
+        if not slack_ids:
+            usernames = re.findall(r"@([\w.\-]+)", text)
+            if not usernames:
+                return ephemeral("❌ Usage: `/oncall-add @user` або `/oncall-add @user1 @user2 @user3`")
+            # Завантажуємо список юзерів і шукаємо по username
+            try:
+                all_users = []
+                cursor = None
+                while True:
+                    kwargs = {"limit": 200}
+                    if cursor:
+                        kwargs["cursor"] = cursor
+                    resp = client.users_list(**kwargs)
+                    all_users += resp["members"]
+                    cursor = resp.get("response_metadata", {}).get("next_cursor")
+                    if not cursor:
+                        break
+            except Exception as e:
+                return ephemeral(f"❌ Не вдалось завантажити список юзерів: {e}")
+
+            for uname in usernames:
+                found = next((u for u in all_users
+                              if u.get("name") == uname
+                              or u.get("profile", {}).get("display_name", "").lower() == uname.lower()
+                              or u.get("profile", {}).get("real_name", "").lower() == uname.lower()), None)
+                if found:
+                    slack_ids.append(found["id"])
+
+        if not slack_ids:
+            return ephemeral("❌ Не знайшов жодного юзера. Спробуй ввести ім'я точніше.")
+
         added, skipped = [], []
-        for slack_id, display_name in user_matches:
+        for slack_id in slack_ids:
             try:
                 profile = client.users_info(user=slack_id)
-                name    = profile["user"]["profile"].get("real_name") or profile["user"]["name"]
+                name = profile["user"]["profile"].get("real_name") or profile["user"]["name"]
             except Exception:
-                name = display_name or slack_id
+                name = slack_id
             ok = add_member(channel_id, slack_id, name)
             if ok:
                 added.append(f"<@{slack_id}> ({name})")
             else:
                 skipped.append(f"<@{slack_id}>")
+
         lines = []
         if added:
             lines.append("✅ Додано: " + ", ".join(added))
