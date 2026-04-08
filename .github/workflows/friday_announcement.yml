@@ -38,4 +38,5 @@ jobs:
           GIST_ID:          ${{ secrets.GIST_ID }}
           GIST_TOKEN:       ${{ secrets.GIST_TOKEN }}
           ALERT_PATTERNS:   ${{ secrets.ALERT_PATTERNS }}
+          GIPHY_API_KEY:    ${{ secrets.GIPHY_API_KEY }}
         run: python scripts/announce.py

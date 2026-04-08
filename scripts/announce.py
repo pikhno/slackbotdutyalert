@@ -15,6 +15,7 @@ from bot.rotation import oncall_for, week_start, TEAM
 from bot.state import get_overrides
 from bot.spin import spin_reveal
 from bot.alerts import count_alerts_this_week
+from bot.gif import get_random_gif
 
 SLACK_TOKEN = os.environ["SLACK_BOT_TOKEN"]
 CHANNEL_ID  = os.environ["SLACK_CHANNEL_ID"]
@@ -66,6 +67,16 @@ def main() -> None:
         f"_Змінити чергового: `/oncall-sub @user` або `/oncall-sub @user 2025-05-05`_"
     )
     client.chat_postMessage(channel=CHANNEL_ID, text=summary)
+
+    # 4. Тематичний GIF
+    gif_url = get_random_gif()
+    if gif_url:
+        client.chat_postMessage(
+            channel=CHANNEL_ID,
+            blocks=[{"type": "image", "image_url": gif_url, "alt_text": "on-call vibes"}],
+            text="on-call vibes",
+        )
+
     print(f"Done. Next on-call: {next_oncall['name']}, alerts this week: {alert_count}")
 
 
