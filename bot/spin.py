@@ -49,5 +49,5 @@ def spin_reveal(client: WebClient, channel: str, ts: str, names: list[str], winn
     client.chat_update(
         channel=channel,
         ts=ts,
-        text=f"🎯 *Черговий наступного тижня* — @{winner}\n_\"{wish}\"_",
+        text=f"🎯 *Черговий наступного тижня* — @{winner}\n✨ {wish} ✨",
     )
