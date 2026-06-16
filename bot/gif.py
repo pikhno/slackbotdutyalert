@@ -7,10 +7,8 @@ import requests
 
 GIPHY_KEY = os.environ.get("GIPHY_API_KEY", "")
 
-# Теги по настрою — чергуються рандомно
 TAGS = [
     "this is fine fire",
-    "monday morning coffee",
     "stressed programmer",
     "server down",
     "panic button",
@@ -20,12 +18,17 @@ TAGS = [
     "you got this",
     "sending help",
     "office chaos",
-    "coffee please",
     "stay calm",
     "superhero ready",
     "let's go work",
+    "disaster incoming",
+    "rip meme",
+    "good luck you'll need it",
+    "this is fine meme",
+    "crying at work",
+    "send help",
+    "game over",
 ]
-
 
 def get_random_gif():
     """Шукає топ-25 GIF по рандомному тегу і повертає рандомний з них."""
@@ -44,7 +47,6 @@ def get_random_gif():
             return None
         gif = random.choice(results)
         images = gif.get("images", {})
-        # fixed_height = 200px tall; fallback to original if not available
         return (
             images.get("fixed_height", {}).get("url")
             or images.get("original", {}).get("url")
