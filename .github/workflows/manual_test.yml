@@ -11,6 +11,11 @@ on:
         options:
           - show_schedule
           - announce
+      channel_id:
+        description: 'Channel ID (порожньо = всі канали)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   test:
@@ -33,9 +38,10 @@ jobs:
       - name: Post to Slack now
         if: ${{ inputs.action == 'announce' }}
         env:
-          SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
-          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
-          GIST_ID:          ${{ secrets.GIST_ID }}
-          GIST_TOKEN:       ${{ secrets.GIST_TOKEN }}
-          GIPHY_API_KEY:    ${{ secrets.GIPHY_API_KEY }}
+          SLACK_BOT_TOKEN:     ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID:    ${{ secrets.SLACK_CHANNEL_ID }}
+          GIST_ID:             ${{ secrets.GIST_ID }}
+          GIST_TOKEN:          ${{ secrets.GIST_TOKEN }}
+          GIPHY_API_KEY:       ${{ secrets.GIPHY_API_KEY }}
+          OVERRIDE_CHANNEL_ID: ${{ inputs.channel_id }}
         run: python scripts/announce.py
