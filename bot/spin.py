@@ -1,9 +1,9 @@
-"""Текстова анімація «барабан» через послідовні chat.update."""
+from slack_sdk import WebClient
 import time
 import random
-from slack_sdk import WebClient
 
 WISHES = [
+    # Класика
     "Нехай алерти обходять тебе стороною 🍀",
     "Нехай всі алерти мовчать як риба 🐟",
     "Удачі! Пам'ятай: це просто числа на екрані 📊",
@@ -11,7 +11,7 @@ WISHES = [
     "Сподіваємось, твій тиждень буде нуднішим за шпалери 🧱",
     "Нехай чергування буде тихим як бібліотека о 3 ночі 🌙",
     "Бажаємо 0 інцидентів і 100% кави ☕",
-    "Хай баги самі себе фіксують! (не хай, але хотілось би) 🐛",
+    "Хай баги самі себе фіксять! (не хай, але хотілось би) 🐛",
     "Тримай телефон поряд. І валеріанку теж 💊",
     "Нехай моніторинг дивиться на тебе з повагою 👀",
     "Удачі, герою! Місто не знає, але воно вдячне 🦸",
@@ -21,46 +21,58 @@ WISHES = [
     "Дихай рівно. Більшість алертів — false positive 😌",
     "Нехай Grafana показує тільки зелені дашборди 📈",
     "Команда вірить у тебе. Ми поруч (в Slack, звісно) 🤝",
+    # Темний гумор для розробників
+    "Якщо горить — значить є чим грітись 🔥",
+    "Пам'ятай: це не баг, це неочікувана фіча 🎁",
+    "Works on my machine™ 🖥️",
+    "Have you tried turning it off and on again? 🔄",
+    "Якщо клієнт не помітив — інциденту не було 🙈",
+    "Якщо все тихо — або все добре, або моніторинг зламаний 🤔",
+    "404: інциденти не знайдено 🔍",
+    "Нехай PagerDuty мовчить як могила 🪦",
+    "Технічний борг — це просто завдання для когось іншого в майбутньому 💸",
+    "Пам'ятай: хтось же написав цей код. Можливо навіть ти 😅",
+    "sudo make me a coffee ☕",
+    "Нехай всі баги залишаться в staging. Як завжди не залишаться, але нехай 🧪",
+    "Distributed systems — це монолід, що ще не впав повністю 🏗️",
+    "Хай rollback буде швидким і рішучим як DELETE без WHERE 🚀",
+    "Нехай on-call тиждень мине як git rebase — без конфліктів 🌿",
+    "Якщо production не горить — ти вже справляєшся краще за середнє 🏆",
+    "Хай timeout буде в сервісі, а не в тебе особисто 💤",
+    "Нехай SLA залишиться зеленим. Або хоча б жовтим 🟡",
+    "Бажаємо щоб будильник о 3 ночі був хоча б по справжній справі 📱",
+    "It's not a memory leak, it's a feature with long-term state 🧠",
+    "Нехай Kubernetes сам розбереться. Він дорослий 🎡",
+    "Хай черговий тиждень буде коротким як git commit -m 'fix' 📝",
+    "On-call — це як Russian Roulette, але з мікросервісами 🎰",
+    "Нехай наступний деплой буде настільки нудним, що про нього забудуть одразу 😴",
+    "Якщо все впало одночасно — це вже не твоя проблема, це архітектурне рішення 🏛️",
 ]
 
-# Кількість кадрів «крутіння» і затримка між ними
-FAST_FRAMES = 10
-SLOW_FRAMES = 5
-FAST_DELAY  = 0.20
-SLOW_DELAY  = 0.45
-FINAL_PAUSE = 0.80
 
-
-def spin_reveal(client: WebClient, channel: str, ts: str, winner: dict, all_names: list) -> None:
-    """
-    Анімує повідомлення з ts: 'барабан' крутиться і зупиняється на winner.
-    """
-    names = [m if isinstance(m, str) else m["name"] for m in all_names]
-
-    # Швидка фаза
-    for _ in range(FAST_FRAMES):
-        picks = random.choices(names, k=3)
-        _update(client, channel, ts, f"🎰  {' → '.join(picks)}")
-        time.sleep(FAST_DELAY)
-
-    # Сповільнення
-    for _ in range(SLOW_FRAMES):
-        picks = random.choices(names, k=2)
-        _update(client, channel, ts, f"🎰  {' ・ '.join(picks)} ・ ?")
-        time.sleep(SLOW_DELAY)
-
-    # Передфінал
-    _update(client, channel, ts, f"🎰  ... {winner['name']} ...")
-    time.sleep(FINAL_PAUSE)
-
-    # Фінальне відкриття
+def spin_reveal(client: WebClient, channel: str, ts: str, names: list[str], winner: str) -> None:
     wish = random.choice(WISHES)
+
+    for _ in range(10):
+        name = random.choice(names)
+        client.chat_update(
+            channel=channel,
+            ts=ts,
+            text=f"🎰 *Крутимо барабан...* _{name}_",
+        )
+        time.sleep(0.20)
+
+    for _ in range(5):
+        name = random.choice(names)
+        client.chat_update(
+            channel=channel,
+            ts=ts,
+            text=f"🎯 *Майже...* _{name}_",
+        )
+        time.sleep(0.45)
+
     client.chat_update(
         channel=channel,
         ts=ts,
-        text=f"🎯 *Черговий на наступний тиждень* — <@{winner['slack_id']}> ({winner['name']})\n_{wish}_",
+        text=f"🎯 *Черговий наступного тижня* — @{winner}\n_\"{wish}\"_",
     )
-
-
-def _update(client: WebClient, channel: str, ts: str, text: str) -> None:
-    client.chat_update(channel=channel, ts=ts, text=text)
