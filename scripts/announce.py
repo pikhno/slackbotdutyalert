@@ -1,6 +1,9 @@
 """
 Щоп'ятничне оголошення — постить у всі канали що є в Gist.
-Запускається GitHub Actions або вручну: python scripts/announce.py
+Запускається GitHub Actions або вручно: python scripts/announce.py
+
+Змінна середовища OVERRIDE_CHANNEL_ID (необов'язкова):
+  якщо задана — постить тільки в цей один канал.
 """
 import os
 import sys
@@ -123,6 +126,13 @@ def main() -> None:
                 "overrides": {},
             }
         }
+
+    override_channel = os.environ.get("OVERRIDE_CHANNEL_ID", "").strip()
+    if override_channel:
+        if override_channel not in channels:
+            print(f"Channel {override_channel} not found in Gist state.")
+            return
+        channels = {override_channel: channels[override_channel]}
 
     print(f"Announcing to {len(channels)} channel(s)...")
     for channel_id, data in channels.items():
