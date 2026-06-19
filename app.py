@@ -157,11 +157,11 @@ def slack_events():
         if user_match:
             slack_id = user_match.group(1)
         else:
-            # Fallback: search by name in team (Slack doesn't always convert @mention)
             query = re.sub(r"\d{4}[-./]\d{2}[-./]\d{2}", "", text).strip().lstrip("@").strip().lower()
+            team_names = ", ".join(m["name"] for m in team)
             found = next((m for m in team if query and query in m["name"].lower()), None)
             if not found:
-                return ephemeral("❌ Usage: `/oncall-sub @user` or `/oncall-sub @user 2025-05-05`")
+                return ephemeral(f"❌ Не знайшов юзера. Отримано: `{text}` | query: `{query}` | команда: {team_names}")
             slack_id = found["slack_id"]
         known = {m["slack_id"]: m["name"] for m in team}
         if slack_id not in known:
