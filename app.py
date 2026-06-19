@@ -154,14 +154,20 @@ def slack_events():
     # ── /oncall-sub @user [YYYY-MM-DD] ────────────────────────────────────────
     if command == "/oncall-sub":
         user_match = re.search(r"<@(\w+)(?:\|[^>]*)?>", text)
-        if not user_match:
-            return ephemeral("❌ Usage: `/oncall-sub @user` or `/oncall-sub @user 2025-05-05`")
-        slack_id   = user_match.group(1)
-        known      = {m["slack_id"]: m["name"] for m in team}
+        if user_match:
+            slack_id = user_match.group(1)
+        else:
+            # Fallback: search by name in team (Slack doesn't always convert @mention)
+            query = re.sub(r"\d{4}[-./]\d{2}[-./]\d{2}", "", text).strip().lstrip("@").strip().lower()
+            found = next((m for m in team if query and query in m["name"].lower()), None)
+            if not found:
+                return ephemeral("❌ Usage: `/oncall-sub @user` or `/oncall-sub @user 2025-05-05`")
+            slack_id = found["slack_id"]
+        known = {m["slack_id"]: m["name"] for m in team}
         if slack_id not in known:
             return ephemeral(f"⚠️ <@{slack_id}> не знайдений в команді. Спочатку додай через `/oncall-add`")
         date_match = re.search(r"(\d{4}-\d{2}-\d{2})", text)
-        ws         = date_match.group(1) if date_match else str(week_start(date.today()))
+        ws = date_match.group(1) if date_match else str(week_start(date.today()))
         set_override(ws, slack_id, channel_id)
         return ephemeral(f"✅ On-call для тижня `{ws}` → <@{slack_id}> ({known[slack_id]})")
 
