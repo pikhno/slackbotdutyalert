@@ -6,7 +6,7 @@ import re
 import hmac
 import hashlib
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from flask import Flask, request, jsonify
 from slack_sdk import WebClient
 
@@ -169,7 +169,17 @@ def slack_events():
             return ephemeral(f"⚠️ <@{slack_id}> не знайдений в команді. Спочатку додай через `/oncall-add`")
         date_match = re.search(r"(\d{4}-\d{2}-\d{2})", text)
         ws = date_match.group(1) if date_match else str(week_start(date.today()))
+        ws_date = datetime.strptime(ws, "%Y-%m-%d").date()
+        prev = oncall_for(ws_date, overrides, team, rotation_start)
         set_override(ws, slack_id, channel_id)
+        client.chat_postMessage(
+            channel=channel_id,
+            text=(
+                f"🚨 BREAKING: <@{prev['slack_id']}> успішно звільнений від чергування.\n\n"
+                f"Система обрала нову жертву — <@{slack_id}>.\n\n"
+                f"Ставки на кількість інцидентів приймаються до понеділка. 🎰🔥"
+            ),
+        )
         return ephemeral(f"✅ On-call для тижня `{ws}` → <@{slack_id}> ({known[slack_id]})")
 
     # ── /oncall-unsub [YYYY-MM-DD] ────────────────────────────────────────────
