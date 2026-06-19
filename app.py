@@ -158,10 +158,11 @@ def slack_events():
             slack_id = user_match.group(1)
         else:
             query = re.sub(r"\d{4}[-./]\d{2}[-./]\d{2}", "", text).strip().lstrip("@").strip().lower()
-            team_names = ", ".join(m["name"] for m in team)
-            found = next((m for m in team if query and query in m["name"].lower()), None)
+            parts = [p for p in re.split(r"[.\s]+", query) if len(p) > 2]
+            found = next((m for m in team if any(p in m["name"].lower() for p in parts)), None)
             if not found:
-                return ephemeral(f"❌ Не знайшов юзера. Отримано: `{text}` | query: `{query}` | команда: {team_names}")
+                team_names = ", ".join(m["name"] for m in team)
+                return ephemeral(f"❌ Не знайшов юзера `{query}` в команді: {team_names}")
             slack_id = found["slack_id"]
         known = {m["slack_id"]: m["name"] for m in team}
         if slack_id not in known:
