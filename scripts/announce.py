@@ -15,7 +15,7 @@ from slack_sdk import WebClient
 
 from bot.rotation import oncall_for, week_start
 from bot.state import load, DEFAULT_CHANNEL, DEFAULT_TEAM
-from bot.alerts import count_alerts_this_week
+from bot.alerts import week_alert_stats, format_alert_breakdown
 from bot.gif import get_random_gif
 from bot.spin import WISHES
 import random
@@ -36,9 +36,12 @@ def announce_channel(client: WebClient, channel_id: str, team: list, overrides: 
     current_oncall    = oncall_for(today, overrides, team, rotation_start)
 
     try:
-        alert_count = count_alerts_this_week(client, channel_id)
+        stats = week_alert_stats(client, channel_id)
+        alert_count = stats["total"]
+        alert_breakdown = format_alert_breakdown(stats["by_name"])
     except Exception:
         alert_count = "—"
+        alert_breakdown = ""
 
     current_ws     = week_start(today)
     current_ws_end = current_ws + timedelta(days=6)
@@ -85,6 +88,15 @@ def announce_channel(client: WebClient, channel_id: str, team: list, overrides: 
                 {"type": "mrkdwn", "text": f"*Алертів:*\n{alert_count}"},
             ]
         },
+    ]
+
+    if alert_breakdown:
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": f"*🔥 Хіт-парад алертів:*\n{alert_breakdown}"}
+        })
+
+    blocks += [
         {"type": "divider"},
         # Наступні два тижні
         {
@@ -97,7 +109,7 @@ def announce_channel(client: WebClient, channel_id: str, team: list, overrides: 
         # Команди
         {
             "type": "context",
-            "elements": [{"type": "mrkdwn", "text": "💡 `/oncall` · `/oncall-sub @user` · `/oncall-unsub` · `/oncall-add @user` · `/oncall-remove @user` · `/oncall-list` · `/oncall-history`"}]
+            "elements": [{"type": "mrkdwn", "text": "💡 `/oncall` · `/oncall-alerts` · `/oncall-sub @user` · `/oncall-unsub` · `/oncall-add @user` · `/oncall-remove @user` · `/oncall-list` · `/oncall-history`"}]
         },
     ]
 

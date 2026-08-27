@@ -30,8 +30,13 @@ commands
 | Command | Request URL | Опис |
 |---|---|---|
 | `/oncall` | `https://slackbotdutyalert.vercel.app/slack/events` | Хто зараз on-call |
+| `/oncall-alerts` | `https://slackbotdutyalert.vercel.app/slack/events` | Хіт-парад алертів за тиждень |
 | `/oncall-sub` | `https://slackbotdutyalert.vercel.app/slack/events` | Замінити чергового |
 | `/oncall-unsub` | `https://slackbotdutyalert.vercel.app/slack/events` | Скасувати заміну |
+| `/oncall-add` | `https://slackbotdutyalert.vercel.app/slack/events` | Додати учасника в ротацію |
+| `/oncall-remove` | `https://slackbotdutyalert.vercel.app/slack/events` | Видалити учасника з ротації |
+| `/oncall-list` | `https://slackbotdutyalert.vercel.app/slack/events` | Список команди в ротації |
+| `/oncall-history` | `https://slackbotdutyalert.vercel.app/slack/events` | Історія чергувань |
 
 5. **Event Subscriptions** → увімкнути → Request URL: `https://YOUR_APP.onrender.com/slack/events`
 6. Запросити бота в канал: `/invite @On-Call Bot`

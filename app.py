@@ -16,7 +16,7 @@ from bot.state import (
     set_override, clear_override,
     add_member, remove_member,
 )
-from bot.alerts import count_alerts_this_week
+from bot.alerts import week_alert_stats, format_alert_breakdown
 
 flask_app = Flask(__name__)
 
@@ -65,7 +65,7 @@ def slack_events():
         ws      = week_start(today)
         ws_end  = ws + timedelta(days=6)
         try:
-            alerts = count_alerts_this_week(client, channel_id)
+            alerts = week_alert_stats(client, channel_id)["total"]
             alerts_text = f"\n📊 Алертів цього тижня: *{alerts}*"
         except Exception:
             alerts_text = ""
@@ -73,6 +73,20 @@ def slack_events():
             f"🔔 *Зараз черговий:* <@{current['slack_id']}> ({current['name']})"
             f"{alerts_text}\n"
             f"📅 Тиждень: {ws.strftime('%d.%m')} – {ws_end.strftime('%d.%m.%Y')}"
+        )
+
+    # ── /oncall-alerts ────────────────────────────────────────────────────────
+    if command == "/oncall-alerts":
+        try:
+            stats = week_alert_stats(client, channel_id)
+        except Exception as e:
+            return ephemeral(f"❌ Не вдалось порахувати алерти: {e}")
+        if stats["total"] == 0:
+            return ephemeral("📊 За цей тиждень алертів ще не було 🎉")
+        breakdown = format_alert_breakdown(stats["by_name"])
+        return ephemeral(
+            f"📊 *Алертів цього тижня: {stats['total']}*\n\n"
+            f"🔥 *Хіт-парад алертів:*\n{breakdown}"
         )
 
     # ── /oncall-list ──────────────────────────────────────────────────────────
