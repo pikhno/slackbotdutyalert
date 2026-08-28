@@ -14,13 +14,23 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from slack_sdk import WebClient
 
 from bot.rotation import oncall_for, week_start
-from bot.state import load, DEFAULT_CHANNEL, DEFAULT_TEAM
+from bot.state import load, save, DEFAULT_CHANNEL, DEFAULT_TEAM
 from bot.alerts import week_alert_stats, format_alert_breakdown
 from bot.gif import get_random_gif
 from bot.spin import WISHES
 import random
 
 SLACK_TOKEN = os.environ["SLACK_BOT_TOKEN"]
+
+
+def already_announced_this_week(data: dict, today: date) -> bool:
+    last = data.get("last_announced")
+    if not last:
+        return False
+    try:
+        return datetime.strptime(last, "%Y-%m-%d").date() == week_start(today)
+    except ValueError:
+        return False
 
 
 def announce_channel(client: WebClient, channel_id: str, team: list, overrides: dict, rotation_start: date) -> None:
@@ -123,13 +133,14 @@ def announce_channel(client: WebClient, channel_id: str, team: list, overrides: 
 
 def main() -> None:
     client = WebClient(token=SLACK_TOKEN)
+    force  = os.environ.get("FORCE_ANNOUNCE", "").strip().lower() == "true"
 
     try:
-        state    = load()
-        channels = state.get("channels", {})
+        state = load()
     except Exception:
-        channels = {}
+        state = {}
 
+    channels = state.get("channels", {})
     if not channels:
         channels = {
             DEFAULT_CHANNEL: {
@@ -138,6 +149,7 @@ def main() -> None:
                 "overrides": {},
             }
         }
+        state["channels"] = channels
 
     override_channel = os.environ.get("OVERRIDE_CHANNEL_ID", "").strip()
     if override_channel:
@@ -146,8 +158,13 @@ def main() -> None:
             return
         channels = {override_channel: channels[override_channel]}
 
+    today = date.today()
     print(f"Announcing to {len(channels)} channel(s)...")
     for channel_id, data in channels.items():
+        if not force and already_announced_this_week(data, today):
+            print(f"  ⏭ {channel_id}: вже анонсовано цього тижня, пропускаю")
+            continue
+
         try:
             team      = data.get("team") or DEFAULT_TEAM
             overrides = data.get("overrides", {})
@@ -155,6 +172,13 @@ def main() -> None:
             announce_channel(client, channel_id, team, overrides, rs)
         except Exception as e:
             print(f"  ✗ {channel_id}: {e}")
+            continue
+
+        data["last_announced"] = str(week_start(today))
+        try:
+            save(state)
+        except Exception as e:
+            print(f"  ⚠ {channel_id}: анонс пішов, але не вдалось зберегти позначку в Gist: {e}")
 
 
 if __name__ == "__main__":

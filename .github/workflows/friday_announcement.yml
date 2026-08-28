@@ -11,6 +11,11 @@ on:
         required: false
         default: 'false'
         type: boolean
+      force:
+        description: 'Force post even if already announced this week (bypasses duplicate guard)'
+        required: false
+        default: 'false'
+        type: boolean
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -41,4 +46,5 @@ jobs:
           GIST_ID:          ${{ secrets.GIST_ID }}
           GIST_TOKEN:       ${{ secrets.GIST_TOKEN }}
           GIPHY_API_KEY:    ${{ secrets.GIPHY_API_KEY }}
+          FORCE_ANNOUNCE:   ${{ inputs.force }}
         run: python scripts/announce.py
