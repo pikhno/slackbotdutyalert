@@ -131,6 +131,56 @@ def announce_channel(client: WebClient, channel_id: str, team: list, overrides: 
     print(f"  ✓ {channel_id} — next: {next_oncall['name']}, alerts: {alert_count}")
 
 
+def announce_alerts_only(client: WebClient, channel_id: str) -> None:
+    """Для каналів без чергування — лише щотижнева статистика алертів."""
+    today          = date.today()
+    current_ws     = week_start(today)
+    current_ws_end = current_ws + timedelta(days=6)
+
+    try:
+        stats = week_alert_stats(client, channel_id)
+        alert_count = stats["total"]
+        alert_breakdown = format_alert_breakdown(stats["by_name"])
+    except Exception:
+        alert_count = "—"
+        alert_breakdown = ""
+
+    plain_text = f"Алертів за тиждень {current_ws.strftime('%d.%m')}–{current_ws_end.strftime('%d.%m')}: {alert_count}"
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "📊 Статистика алертів за тиждень", "emoji": True}
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*Тиждень {current_ws.strftime('%d.%m')}–{current_ws_end.strftime('%d.%m')}*\n*Алертів:* {alert_count}"
+            }
+        },
+    ]
+
+    if alert_breakdown:
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": f"*🔥 Хіт-парад алертів:*\n{alert_breakdown}"}
+        })
+    else:
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "_За цей тиждень алертів не було_ 🎉"}
+        })
+
+    blocks.append({
+        "type": "context",
+        "elements": [{"type": "mrkdwn", "text": "💡 `/oncall-alerts` — переглянути статистику в будь-який момент"}]
+    })
+
+    client.chat_postMessage(channel=channel_id, blocks=blocks, text=plain_text)
+    print(f"  ✓ {channel_id} — alerts-only, alerts: {alert_count}")
+
+
 def main() -> None:
     client = WebClient(token=SLACK_TOKEN)
     force  = os.environ.get("FORCE_ANNOUNCE", "").strip().lower() == "true"
@@ -166,10 +216,13 @@ def main() -> None:
             continue
 
         try:
-            team      = data.get("team") or DEFAULT_TEAM
-            overrides = data.get("overrides", {})
-            rs        = datetime.strptime(data.get("rotation_start", "2025-04-14"), "%Y-%m-%d").date()
-            announce_channel(client, channel_id, team, overrides, rs)
+            if data.get("alerts_only"):
+                announce_alerts_only(client, channel_id)
+            else:
+                team      = data.get("team") or DEFAULT_TEAM
+                overrides = data.get("overrides", {})
+                rs        = datetime.strptime(data.get("rotation_start", "2025-04-14"), "%Y-%m-%d").date()
+                announce_channel(client, channel_id, team, overrides, rs)
         except Exception as e:
             print(f"  ✗ {channel_id}: {e}")
             continue

@@ -13,9 +13,16 @@
       "overrides": {
         "2025-05-05": "U0A6DCFSKD4"
       }
+    },
+    "C0BT05CQA59": {
+      "alerts_only": true
     }
   }
 }
+
+"alerts_only" (необов'язкове, за замовчуванням false) — канал без чергування,
+у п'ятничне оголошення в нього йде лише щотижнева статистика алертів
+(без team/rotation_start/overrides).
 """
 import os
 import json
