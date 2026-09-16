@@ -3,9 +3,11 @@
 Алерт = повідомлення від Alertmanager app (bot_id B03E15RC1QT).
 
 Alertmanager шле алерти класичними Slack attachments, і різні правила
-заповнюють різні поля (title/text/fields), тому назву витягуємо за
-пріоритетом: title/pretext → перший рядок text → відоме поле лейблів →
-fallback → сам текст повідомлення.
+заповнюють різні поля (title/text/fields) або взагалі шлють кожне правило
+під власним username (напр. #ruaup: "vm_available_memory_bytes_low") —
+тому назву витягуємо за пріоритетом: title/pretext → перший рядок text →
+відоме поле лейблів → username повідомлення → fallback → сам текст
+повідомлення.
 """
 import re
 from collections import Counter
@@ -46,6 +48,13 @@ def _alert_name(msg: dict) -> str:
             if fields.get(key):
                 return fields[key][:MAX_NAME_LEN]
 
+    # Деякі канали (напр. #ruaup) не заповнюють жодне з полів вище, зате
+    # шлють кожне правило під власним username — це і є назва алерту.
+    username = _clean(msg.get("username") or "")
+    if username:
+        return username[:MAX_NAME_LEN]
+
+    for att in msg.get("attachments", []) or []:
         fallback = _clean((att.get("fallback") or "").split("\n")[0])
         if fallback:
             return fallback[:MAX_NAME_LEN]
